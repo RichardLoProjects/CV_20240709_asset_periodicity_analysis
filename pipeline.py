@@ -84,9 +84,9 @@ class DataPipeline:
         clean_fft = fft(delta_signal)
         clean_fft[self.new_data['bid_amp_clean'] == 0] = 0
         self.new_data['bid_delta_clean'] = ifft(clean_fft).real
-        peaks, _ = find_peaks(-self.new_data['bid_delta_clean'])
+        bid_peaks, _ = find_peaks(-self.new_data['bid_delta_clean'])
         self.new_data['signal'] = None
-        self.new_data.loc[peaks, 'signal'] = 'buy'
+        self.new_data.loc[bid_peaks, 'signal'] = 'buy'
         self.new_data['ask_delta'] = self.new_data['ask_price'].astype(float).diff()
         self.new_data['ask_delta'].fillna(0, inplace=True)
         delta_signal = self.new_data['ask_delta'].values
@@ -101,16 +101,14 @@ class DataPipeline:
         clean_fft = fft(delta_signal)
         clean_fft[self.new_data['ask_amp_clean'] == 0] = 0
         self.new_data['ask_delta_clean'] = ifft(clean_fft).real
-        peaks, _ = find_peaks(-self.new_data['ask_delta_clean'])
-        self.new_data['signal'] = None
-        self.new_data.loc[peaks, 'signal'] = 'sell'
+        ask_peaks, _ = find_peaks(self.new_data['ask_delta_clean'])
+        self.new_data.loc[ask_peaks, 'signal'] = 'sell'
     def load(self, database) -> None:
-        primary_key = 'transaction_id'
+        primary_key = 'unix_time'
         create_table_sql = f'''
 CREATE TABLE IF NOT EXISTS {self.secret.tablename} (
-    {primary_key} SERIAL PRIMARY KEY
+    {primary_key} int PRIMARY KEY
     , time_stamp timestamp
-    , unix_time int
     , bid_price int
     , ask_price int
     , bid_volume int
@@ -128,10 +126,18 @@ CREATE TABLE IF NOT EXISTS {self.secret.tablename} (
     , ask_delta_clean float
 );'''
         database.cursor.execute(create_table_sql)
-        _df = _df.replace({np.nan: None})
-        query = f'SELECT * FROM {self.secret.tablename}'
+        self.new_data = self.new_data.replace({np.nan: None})
+        query = f'SELECT {primary_key} FROM {self.secret.tablename}'
         existing_data = pd.read_sql(query, database.connection)
-        pass
+        existing_set = set(existing_data[primary_key])
+        non_duplicate_data = self.new_data[~self.new_data[primary_key].isin(existing_set)]
+        if not non_duplicate_data.empty:
+            tuples = [tuple(x) for x in non_duplicate_data.to_numpy()]
+            columns = ','.join(non_duplicate_data.columns)
+            values = ','.join(['%s'] * len(non_duplicate_data.columns))
+            insert_query = f'INSERT INTO {self.secret.tablename} ({columns}) VALUES ({values})'
+            database.cursor.executemany(insert_query, tuples)
+        database.connection.commit()
     def db_emergency(self) -> None:
         '''Try to open existing data and add to it, otherwise create new file.'''
         file_name = 'timeseries_2024_07_12.csv'
@@ -154,11 +160,14 @@ def main() -> None:
     warnings.filterwarnings('ignore', message='.*pandas only supports SQLAlchemy connectable.*')
     my_secrets = EnvSecrets()
     my_database = DatabaseConnection(my_secrets)
-    foo = DataPipeline()
+    foo = DataPipeline(my_secrets)
     foo.extract()
+    print('e')
     foo.transform()
+    print('t')
     try:
         foo.load(my_database)
+        print('db')
     except:
         foo.db_emergency()
     finally:
