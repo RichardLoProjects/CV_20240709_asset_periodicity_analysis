@@ -32,9 +32,8 @@ class DataPipeline:
         file_name = 'bond_timeseries.csv'
         try:
             existing_data = pd.read_csv(file_name)
-            for column_name in existing_data.columns:
-                if 'Unnamed' in column_name:
-                    existing_data.drop(columns=column_name, inplace=True)
+            unnamed_columns = [c for c in existing_data.columns if 'Unnamed' in c]
+            existing_data.drop(columns=unnamed_columns, inplace=True)
             incoming_data = pd.concat([existing_data, self.new_data], ignore_index=True)
             incoming_data.set_index('unix_time', inplace=True)
             incoming_data.drop_duplicates(keep='first', inplace=True)
