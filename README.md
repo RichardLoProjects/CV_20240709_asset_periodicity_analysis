@@ -21,9 +21,11 @@ Due to legal and monetary issues with API keys, the project will be remodelled t
 ### Project Outcomes
 
 - `eda.ipynb`: an ET data pipeline for feature engineering, visualisation, and discussion, intended for a data analyst or quant with further research in mind.
-- `el_csv.py`: an EL data pipeline for compressed proprietary storage, intended for manual use at home.
-- `pipeline.py`: an ETL data pipeline for feature engineering and saving to a database, intended to be run on a cronjob server.
+- `fetch.py`: an EL data pipeline for compressed proprietary storage, intended for manual use at home.
+- `bond_timeseries.csv`: the data.
+- `pipeline.py`: a modified version of `fetch.py` with feature engineering and database handling, intended to be run on a remote server using `.env`.
 - `backtest.ipynb`: simulation of a trading bot and backtest.
 
 ### Conclusion
 
+While the exploratory data analysis does indeed return evidence for periodicity in stock price, the implementation of feature engineering proved to be quite poor, losing quite a significant amount of money. In other words, while project aims were met, more work must be done to tackle the problem statement.
